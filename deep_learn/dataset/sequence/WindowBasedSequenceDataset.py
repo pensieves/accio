@@ -23,28 +23,23 @@ class WindowBasedSequenceDataset(Dataset):
         
         if isinstance(pos_reg_len_in_seq, str):
             raise NotImplementedError
-#             pass # timestamp based, may differ for sequence
-        else:
-            self.pos_reg_len_in_seq = pos_reg_len_in_seq
+            # get a vector of +ve reg len values based on timestamp
         
         unique_seq_id, seq_start_idx = np.unique(self.seq_ids, return_index=True)
         sort_select_seq_start_idx =  np.argsort(seq_start_idx)
         
-        self.seq_start_idx = np.append(seq_start_idx[sort_select_seq_start_idx], 
+        seq_start_idx = np.append(seq_start_idx[sort_select_seq_start_idx], 
                                        len(self.seq_ids))
         self.unique_seq_id = unique_seq_id[sort_select_seq_start_idx]
         
         # inclusive for neg reg start
-        self.seq_neg_start_idx = self.seq_start_idx[:-1] + self.window_len - 1
+        self.seq_neg_start_idx = seq_start_idx[:-1] + self.window_len - 1
 
         # exclusive for neg reg end, inclusive for pos reg start
-        self.seq_pos_start_idx = self.seq_start_idx[1:] - self.pos_reg_len_in_seq
-        
-        # inclusive for pos reg end
-        self.seq_pos_end_idx = self.seq_start_idx[1:] - 1
+        self.seq_pos_start_idx = seq_start_idx[1:] - pos_reg_len_in_seq
 
-        self.cumul_num_windows_in_seq = np.cumsum(self.seq_start_idx[1:] - 
-                                                  self.seq_start_idx[:-1] - 
+        self.cumul_num_windows_in_seq = np.cumsum(seq_start_idx[1:] - 
+                                                  seq_start_idx[:-1] - 
                                                   self.window_len + 1)
         
         # insert 0 as the beggining count for handy computation
