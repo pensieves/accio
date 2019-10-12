@@ -1,6 +1,11 @@
+import torch
 from torch import nn
+from ..utils import get_embedding, get_dense_block
 
-from .. import get_embedding, get_dense_block
+aggregation_dict = {"concat": lambda x: torch.cat(x, dim=1),
+                    "sum": lambda x: torch.sum(torch.stack(x, dim=2), dim=2),
+                    "mean": lambda x: torch.mean(torch.stack(x, dim=2), dim=2),
+                    "max": lambda x: torch.max(torch.stack(x, dim=2), dim=2)[0]}
 
 class MultiEmbedTransform(nn.Module):
     
@@ -23,7 +28,7 @@ class MultiEmbedTransform(nn.Module):
         dictionaries are passed then they should be same in number as the 
         number of multiple embeddings required."""
 
-        super(MultiColEmbedTransform, self).__init__()
+        super(MultiEmbedTransform, self).__init__()
         
         for emb_cols, trans_args in ((sparse_emb_cols, sparse_emb_trans_args),
                                      (dense_emb_cols, dense_emb_trans_args)):
@@ -79,23 +84,24 @@ class MultiEmbedTransform(nn.Module):
                     for i in range(len(emb_cols)):
                         trans_list.append(get_dense_block(input_size=emb[i].weight.shape[1],
                                                           **trans_args))
+        
+        self.aggregation = None if aggregation is None else aggregation_dict[aggregation]
     
-    def forward(self, sparse_col_inp=None, dense_col_inp=None):
-#         import pdb; pdb.set_trace()
+    def forward(self, sparse_col_inp=[], dense_col_inp=[]):
+
         for col_inp, emb, emb_transform in ((sparse_col_inp, self.sparse_emb, 
                                              self.sparse_emb_transform), 
                                             (dense_col_inp, self.dense_emb, 
                                              self.dense_emb_transform)):
-            
-            if col_inp is not None and isinstance(col_inp, list):
-                # apply embedding
-                for i in range(len(col_inp)):
-                    col_inp[i] = emb[i](col_inp[i])
-                
-                # apply dense transformation after embedding
-                for i, transform in enumerate(emb_transform):
-                    col_inp[i] = transform(col_inp[i])
-        
-        return sparse_col_inp, dense_col_inp
 
-# aggregation
+            # apply embedding
+            for i in range(len(col_inp)):
+                col_inp[i] = emb[i](col_inp[i])
+
+            # apply dense transformation after embedding
+            for i, transform in enumerate(emb_transform):
+                col_inp[i] = transform(col_inp[i])
+        
+        if self.aggregation is None:        
+            return sparse_col_inp, dense_col_inp
+        return self.aggregation([*sparse_col_inp, *dense_col_inp])

@@ -1,1 +1,4 @@
 from .MultiEmbedTransform import MultiEmbedTransform
+from .AnchoredMetricSpacing import AnchoredMetricSpacing
+from .AnchoredMetricRanking import AnchoredMetricRanking
+from .HierarchicalEncoder import HierarchicalEncoder
