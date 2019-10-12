@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from random import random
 import numpy as np
-from . import EncoderRNN
-from .. import get_dense_block, bi2uni_dir_rnn_hidden
+from .EncoderRNN import EncoderRNN
+from ..utils import get_dense_block, bi2uni_dir_rnn_hidden
 
 # Attention = lambda x: x # just a placeholder, replace with attention module once ready.
 

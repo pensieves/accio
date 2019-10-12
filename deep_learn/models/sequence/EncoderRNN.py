@@ -12,9 +12,10 @@ class EncoderRNN(nn.Module):
         
         super(EncoderRNN, self).__init__()
 
-        self.embedding = get_embedding(emb_type, num_embeddings, embedding_dim, emb_weight, 
-                                       freeze, **emb_kwargs)
-        if self.embedding is not None:
+        self.embedding = None
+        if emb_type is not None:
+            self.embedding = get_embedding(emb_type, num_embeddings, embedding_dim, emb_weight, 
+                                           freeze, **emb_kwargs)
             input_size = self.embedding.weight.shape[1]
         
         self.batch_first = batch_first
