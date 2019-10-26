@@ -1,5 +1,26 @@
 import torch
 from torch import nn
+        
+def _init_weights(net, fan_out = 3):
+    # see also https://github.com/pytorch/pytorch/issues/18182
+    for m in net.modules():
+        if type(m) in {
+            nn.Conv1d,
+            nn.Linear
+        }:
+            nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                fan_in, fan_out = nn.init._calculate_fan_in_and_fan_out(m.weight.data)
+                bound = 1 / math.sqrt(fan_out)
+                nn.init.normal_(m.bias, -bound, bound)
+        if type(m) in [nn.GRU, nn.LSTM, nn.RNN]:
+                for name, param in m.named_parameters():
+                    if 'weight_ih' in name:
+                        torch.nn.init.xavier_uniform_(param.data)
+                    elif 'weight_hh' in name:
+                        torch.nn.init.orthogonal_(param.data)
+                    elif 'bias' in name:
+                        param.data.fill_(0)     
 
 def get_embedding(emb_type="distributional", num_embeddings=None, embedding_dim=None, 
                   emb_weight=None, freeze=True, **kwargs):
