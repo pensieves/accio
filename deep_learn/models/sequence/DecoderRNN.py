@@ -4,6 +4,7 @@ from random import random
 import numpy as np
 from .EncoderRNN import EncoderRNN
 from ..utils import get_dense_block, bi2uni_dir_rnn_hidden
+import torch.nn.functional as F
 
 # Attention = lambda x: x # just a placeholder, replace with attention module once ready.
 
@@ -44,23 +45,25 @@ class DecoderRNN(EncoderRNN):
                                      " equal to the hidden size of decoder if "
                                      "dec_init_hidden_transform is not being applied.")
         
-        self.attention = Attention(hidden_size) if attention else None
+        self.attention = Attention(enc_hidden_size) if attention else None
+        context_size = enc_hidden_size if attention else 0
         
         output_size = num_embeddings if num_embeddings is not None else \
                         self.embedding.weight.shape[0]
-        self.output = nn.Linear(hidden_size, output_size, linear_bias)
+        self.output = nn.Linear(hidden_size+context_size, output_size, linear_bias)
     
     def forward_step(self, inp, dec_hidden, enc_out):
         
         emb = self.embedding(inp)
         dec_out, dec_hidden = self.sequencer(emb, dec_hidden)
         
-        attention = None
+        attn_weights = None
         if self.attention is not None:
-            dec_out, attention = self.attention(dec_out, enc_out)
+            context_vec, attn_weights = self.attention(dec_out, enc_out)
+            dec_out = torch.cat((dec_out, context_vec), dim=2)
         
-        import pdb; pdb.set_trace()
-#         log_softmax = torch.log_softmax
+        dec_out = F.tanh(self.output(dec_out))
+        return dec_out, dec_hidden, attn_weights
     
     def forward(self, inp=None, enc_out=None, enc_hidden=None, teach_force_ratio=1, 
                 device=torch.device("cpu")):
@@ -75,8 +78,24 @@ class DecoderRNN(EncoderRNN):
         
         if use_teach_force:
             dec_inp = inp[:,:-1]
-            self.forward_step(dec_inp, dec_hidden, enc_out)
-    
+            dec_out, dec_hidden, attn_weights = self.forward_step(dec_inp, dec_hidden, 
+                                                                  enc_out)
+        else:
+            out_list = [] # across seq_len
+            attn_wt_list = [] # across seq_len
+
+            dec_inp = inp[:,0].unsqueeze(1)
+            for i in range(max_len):
+                dec_out, dec_hidden, attn_weights = self.forward_step(dec_inp, dec_hidden, 
+                                                                      enc_out)
+                out_list.append(dec_out)
+                attn_wt_list.append(attn_weights)
+            
+            dec_out = torch.cat(out_list, dim=1)
+            attn_weights = torch.cat(attn_wt_list, dim=1)
+        
+        return dec_out, dec_hidden, attn_weights
+                
     def _dec_init_hidden_transform(self, hidden_size, enc_sequencer, enc_bidirectional, 
                                    enc_hidden_size, linear_bias):
         
